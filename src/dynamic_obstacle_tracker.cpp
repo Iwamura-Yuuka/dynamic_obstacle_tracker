@@ -70,7 +70,7 @@ geometry_msgs::PoseArray DynamicObstacleTracker::clustering(pcl::PointCloud<pcl:
   pcl::ExtractIndices<pcl::PointXYZ> ei;
   ei.setInputCloud(cloud);
   ei.setNegative(false);
-  for (size_t i = 0; i < cluster_indices.size(); i++)
+  for (size_t i = 0; i < cluster_indices.size(); ++i)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_clustered(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointIndices::Ptr clustered_indices(new pcl::PointIndices);
@@ -83,7 +83,7 @@ geometry_msgs::PoseArray DynamicObstacleTracker::clustering(pcl::PointCloud<pcl:
   // === publish ===
   geometry_msgs::PoseArray pose_array;
   pose_array.header = pcl_conversions::fromPCL(cloud->header);
-  for (size_t i = 0; i < clusters.size(); i++)
+  for (size_t i = 0; i < clusters.size(); ++i)
   {
     Eigen::Vector4f xyz_centroid;
     pcl::compute3DCentroid(*clusters[i], xyz_centroid);
@@ -102,7 +102,7 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
 {
   if (paths_.empty())  // initialize
   {
-    for (size_t i = 0; i < poses.poses.size(); i++)
+    for (size_t i = 0; i < poses.poses.size(); ++i)
     {
       nav_msgs::Path path;
       path.header = poses.header;
@@ -116,16 +116,21 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
   {
     int index_check_array[poses.poses.size()] = {0};
     std::vector<int> new_index;
-    for (size_t i = 0; i < poses.poses.size(); i++)
+    for (size_t i = 0; i < poses.poses.size(); ++i)
     {
       // search nearest path
       float min_dist = 1e6;
       int min_idx = -1;
-      for (size_t j = 0; j < paths_.size(); j++)
+      for (size_t j = 0; j < paths_.size(); ++j)
       {
-        const float dist = sqrt(
-            pow(poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2) +
-            pow(poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2));
+        // const float dist = sqrt(
+        //     pow(poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2) +
+        //     pow(poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2));
+        const float dist = (
+            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2)*
+            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2)+
+            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2)*
+            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2))^(1/2);
         if (dist < min_dist)
         {
           min_dist = dist;
@@ -147,14 +152,14 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
     }
 
     // remove path
-    for (size_t i = 0; i < paths_.size(); i++)
+    for (size_t i = 0; i < paths_.size(); ++i)
       if (index_check_array[i] == 0)
         paths_.erase(paths_.begin() + i);
 
     // add new path
     if (!new_index.empty())
     {
-      for (size_t i = 0; i < new_index.size(); i++)
+      for (size_t i = 0; i < new_index.size(); ++i)
       {
         nav_msgs::Path path;
         path.header = poses.header;
@@ -172,7 +177,7 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
 void DynamicObstacleTracker::visualize_trajectories(const std::vector<nav_msgs::Path> &paths)
 {
   visualization_msgs::MarkerArray v_trajectories;
-  for (size_t i = 0; i < paths.size(); i++)
+  for (size_t i = 0; i < paths.size(); ++i)
   {
     if (paths[i].poses.size() < 2)
       continue;
