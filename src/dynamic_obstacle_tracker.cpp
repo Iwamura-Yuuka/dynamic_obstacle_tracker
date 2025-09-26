@@ -126,11 +126,12 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
         // const float dist = sqrt(
         //     pow(poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2) +
         //     pow(poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2));
-        const float dist = (
-            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2)*
-            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2)+
-            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2)*
-            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2))^(1/2);
+        const float dist = sqrt(
+          ((poses.poses[i].position.x - paths_[j].poses.back().pose.position.x)*
+            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x))+
+            ((poses.poses[i].position.y - paths_[j].poses.back().pose.position.y)*
+            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y)));
+
         if (dist < min_dist)
         {
           min_dist = dist;
