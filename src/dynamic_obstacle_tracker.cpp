@@ -5,8 +5,10 @@
  * @copyright Copyright (c) 2024
  */
 
+#include <omp.h>
 #include <string>
 #include <vector>
+#include <pcl/filters/voxel_grid.h>
 
 #include "dynamic_obstacle_tracker/dynamic_obstacle_tracker.h"
 
@@ -46,7 +48,16 @@ void DynamicObstacleTracker::cloud_callback(const sensor_msgs::PointCloud2ConstP
   pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud =
       pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(cloud_transformed, *pcl_cloud);
-  track(clustering(pcl_cloud));
+
+  // downsampling
+  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::VoxelGrid<pcl::PointXYZ> vg;
+  vg.setInputCloud(pcl_cloud);
+  vg.setLeafSize(0.05f, 0.05f, 0.05f);
+  vg.filter(*filtered);
+
+  // track(clustering(pcl_cloud));
+  track(clustering(filtered));
 }
 
 geometry_msgs::PoseArray DynamicObstacleTracker::clustering(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
@@ -83,18 +94,45 @@ geometry_msgs::PoseArray DynamicObstacleTracker::clustering(pcl::PointCloud<pcl:
   // === publish ===
   geometry_msgs::PoseArray pose_array;
   pose_array.header = pcl_conversions::fromPCL(cloud->header);
-  for (size_t i = 0; i < clusters.size(); ++i)
+
+  // for (size_t i = 0; i < clusters.size(); ++i)
+  // {
+  //   Eigen::Vector4f xyz_centroid;
+  //   pcl::compute3DCentroid(*clusters[i], xyz_centroid);
+  //   geometry_msgs::Pose pose;
+  //   pose.position.x = xyz_centroid[0];
+  //   pose.position.y = xyz_centroid[1];
+  //   pose.position.z = xyz_centroid[2];
+  //   pose_array.poses.push_back(pose);
+  // }
+
+  // === parallelization ===
+  pose_array.poses.resize(clusters.size());
+
+  #pragma omp parallel for schedule(static)
+  for (int i = 0; i < static_cast<int>(clusters.size()); ++i)
   {
     Eigen::Vector4f xyz_centroid;
     pcl::compute3DCentroid(*clusters[i], xyz_centroid);
+
     geometry_msgs::Pose pose;
     pose.position.x = xyz_centroid[0];
     pose.position.y = xyz_centroid[1];
     pose.position.z = xyz_centroid[2];
-    pose_array.poses.push_back(pose);
-  }
-  poses_pub_.publish(pose_array);
 
+    pose_array.poses[i] = pose;
+  }
+
+  // thread count verification for parallelization (for debug)
+  // #pragma omp parallel
+  // {
+  //   #pragma omp single
+  //   {
+  //     ROS_WARN_STREAM("Number of threads: " << omp_get_num_threads() << std::endl);
+  //   }
+  // }
+
+  poses_pub_.publish(pose_array);
   return pose_array;
 }
 
@@ -114,6 +152,8 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
   }
   else  // update
   {
+    double min_dist_th2 = param_.min_dist_th * param_.min_dist_th;
+
     int index_check_array[poses.poses.size()] = {0};
     std::vector<int> new_index;
     for (size_t i = 0; i < poses.poses.size(); ++i)
@@ -123,14 +163,10 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
       int min_idx = -1;
       for (size_t j = 0; j < paths_.size(); ++j)
       {
-        // const float dist = sqrt(
-        //     pow(poses.poses[i].position.x - paths_[j].poses.back().pose.position.x, 2) +
-        //     pow(poses.poses[i].position.y - paths_[j].poses.back().pose.position.y, 2));
-        const float dist = sqrt(
-          ((poses.poses[i].position.x - paths_[j].poses.back().pose.position.x)*
-            (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x))+
-            ((poses.poses[i].position.y - paths_[j].poses.back().pose.position.y)*
-            (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y)));
+        const float dist = (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x)*
+                           (poses.poses[i].position.x - paths_[j].poses.back().pose.position.x)+
+                           (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y)*
+                           (poses.poses[i].position.y - paths_[j].poses.back().pose.position.y);
 
         if (dist < min_dist)
         {
@@ -139,14 +175,14 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
         }
       }
 
-      if (min_dist < param_.min_dist_th && index_check_array[min_idx] == 0)
+      if (min_dist < min_dist_th2 && index_check_array[min_idx] == 0)
       {
         geometry_msgs::PoseStamped pose;
         pose.pose = poses.poses[i];
         paths_[min_idx].poses.push_back(pose);
         index_check_array[min_idx] = 1;
       }
-      else if (min_dist >= param_.min_dist_th)
+      else if (min_dist >= min_dist_th2)
       {
         new_index.push_back(i);
       }
