@@ -220,7 +220,9 @@ void DynamicObstacleTracker::visualize_trajectories(const std::vector<nav_msgs::
       continue;
 
     std_msgs::ColorRGBA color;
-    color.g = 1.0;
+    color.r = 1.0;
+    color.g = 0.7;
+    color.b = 0.1;
     visualization_msgs::Marker v_trajectory = create_marker_msg(i, 0.1, color, paths[i]);
     v_trajectories.markers.push_back(v_trajectory);
   }
@@ -241,7 +243,8 @@ visualization_msgs::Marker DynamicObstacleTracker::create_marker_msg(
   marker.scale.x = scale;
   marker.color = color;
   marker.color.a = 1;
-  marker.lifetime = ros::Duration(0.1);
+  marker.lifetime = ros::Duration(0.1);  // Normal
+  // marker.lifetime = ros::Duration(0);  // For make figure
 
   geometry_msgs::Point p;
   for (const auto &pose : path.poses)
