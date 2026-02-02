@@ -26,11 +26,21 @@ void DynamicObstacleTracker::cloud_callback(const sensor_msgs::PointCloud2ConstP
 {
   // transform pointcloud to global frame
   geometry_msgs::TransformStamped transform_stamped;
+
+  const ros::Duration timeout(0.1);
+  if (!tf_buffer_.canTransform(param_.global_frame, cloud_msg->header.frame_id, cloud_msg->header.stamp, timeout))
+  {
+    ROS_WARN_STREAM_THROTTLE(1.0, "TF not available. drop cloud. target=" << param_.global_frame
+                                                                         << " source=" << cloud_msg->header.frame_id
+                                                                         << " stamp=" << cloud_msg->header.stamp);
+    return;
+  }
+
   while (ros::ok())
   {
     try
     {
-      transform_stamped = tf_buffer_.lookupTransform(param_.global_frame, cloud_msg->header.frame_id, ros::Time(0));
+      transform_stamped = tf_buffer_.lookupTransform(param_.global_frame, cloud_msg->header.frame_id, cloud_msg->header.stamp);
       break;
     }
     catch (tf2::TransformException &ex)
