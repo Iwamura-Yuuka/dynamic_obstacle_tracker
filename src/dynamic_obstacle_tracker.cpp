@@ -155,6 +155,7 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
       nav_msgs::Path path;
       path.header = poses.header;
       geometry_msgs::PoseStamped pose;
+      pose.header = poses.header;
       pose.pose = poses.poses[i];
       path.poses.push_back(pose);
       paths_.push_back(path);
@@ -188,6 +189,7 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
       if (min_dist < min_dist_th2 && index_check_array[min_idx] == 0)
       {
         geometry_msgs::PoseStamped pose;
+        pose.header = poses.header;
         pose.pose = poses.poses[i];
         paths_[min_idx].poses.push_back(pose);
         index_check_array[min_idx] = 1;
@@ -211,10 +213,16 @@ void DynamicObstacleTracker::track(geometry_msgs::PoseArray poses)
         nav_msgs::Path path;
         path.header = poses.header;
         geometry_msgs::PoseStamped pose;
+        pose.header = poses.header;
         pose.pose = poses.poses[new_index[i]];
         path.poses.push_back(pose);
         paths_.push_back(path);
       }
+    }
+    // synchronize timestamps
+    for (auto &p : paths_)
+    {
+      p.header = poses.header;
     }
 
     visualize_trajectories(paths_);
